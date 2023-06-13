@@ -1,0 +1,565 @@
+---
+title: "DWARF PARAFAC"
+author: "CBG"
+date: "3/23/2022"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+# DWARF Project PARAFAC analysis
+Fluorescence excitation - emission spectra (EEM) have been measured using a Duetta machine (Horiba, France), excitation range was 250 – 550 nm by 5 nm, emission range was measured from 280 to 800 nm. Absorbance for inner filter effect correction was measured by the same machine simultaneously. 
+
+Here the data is analysed by PARAFAC using the staRdom package. According to: https://cran.r-project.org/web/packages/staRdom/vignettes/PARAFAC_analysis_of_EEM.html
+
+**Aim of the project:** Can we distinguish anthropogenic from natural DOM?
+
+**Comment:** For the new 2023 data there is two different version for which one was done with some sort of correction. Tried running the corrected but looked like mismatch in wavelength range and intervals compared to the previous data. Need to check with Petr. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load required packages, include=FALSE}
+Packages <- c("staRdom","dplyr", "tidyr")
+lapply(Packages, library, character.only = TRUE)
+#library(devtools)
+#install_github("MatthiasPucher/staRdom")
+#library(staRdom)
+```
+
+```{r Load and combine data, echo=FALSE, warning=FALSE, message=FALSE}
+#The following folder contains samples from Otava and with "uncorrected" 2023 data.
+# to find number of samples in list it is necessary to make summary and then ask nrow
+eem_list1 = eem_import_dir("C:/Users/CBG/OneDrive - NIVA/1 Projects/DWARF/DWARF-PARAFAC/new/new2/new4")
+a <- summary(eem_list1)
+
+nrow(a)
+#The following is the corrected data. 
+#From Petr: I preprocessed EEMs for Otava river nad try to calculate PARAFAC. The difference is that now the eems have more excitation wavelengths. In previous version I reduced number of excitation to integer values. It is more precise in UV range now. = mostly affects microbial components.
+#eem_list1 = eem_import_dir("C:/Users/CBG/OneDrive - NIVA/1 Projects/DWARF/DWARF-PARAFAC/new/new2/new7")
+```
+## 1) Sample overview and checking for neccessary corrections
+The PARAFAC analysis will include samples from Otava, only. 
+- summary table to check the consistency of wavelengths, and weather the following corrections have been made: blank correction, scatter correction, and inner filter correction. 
+`print(a)`
+- seems like some samples have not been blank corrected. Believe this was previously checked by Petr to be uncorrect. Check old emails? (eem_list2, 3, 4 and 5 is not blank corrected?)
+
+## 2) Sample selection
+- Samples from Otava only should be included
+- 14 stations in Otava
+- Samples analysed 4 times in 2021
+- Samples analysed 4 times in 2022
+- Samples analysed 1 time in 2023
+- should equal to 126 samples
+
+- Number of samples in the uploaded dataset is `nrow(a)`, but only wants those from Otava (n=126)
+- seems like samples from jan 2021 is marked with 2022 (?)
+- some samples are control and should not be included
+- some samples analysed multiple times in same month+year?
+- manually, in excel, found list of samples to exclude
+
+```{r View EEM data, include=FALSE}
+#to select samples: after trial and error in R, the sample list was exported to excel  to filter which to be included in
+write.csv(a,"C:/Users/CBG/OneDrive - NIVA/1 Projects/DWARF/DWARF_summaryX3.csv", row.names = FALSE)
+
+info <- read.table("DWARF_sampleoverview4.txt", sep="\t", header=TRUE)
+nrow(info)
+```
+
+- The noisy range below 250 nm excitation and above 580 nm emission can be removed 
+```{r exclude samples that dont belong to the dwarf project, echo=FALSE, warning=FALSE, error=FALSE}
+#found these manually in excel. After trial and error here....
+exclude <- list("ex" = c(),
+                "em" = c(),
+                "sample" = c("v20211248",
+"v20211249",
+"v20211250",
+"v20211251",
+"v20211252",
+"v20211253",
+"v20211254",
+"v2021132",
+"v2021133",
+"v2021134",
+"v2021135",
+"v2021136",
+"v2021137",
+"v2021138",
+"v2021139",
+"v2021140",
+"v2021141",
+"v2021142",
+"v2021143",
+"v2021144",
+"v2021145",
+"v2021146",
+"v2021147",
+"v2021148",
+"v2021149",
+"v2021150",
+"v20211948",
+"v20211949",
+"v20211950",
+"v20211951",
+"v20211952",
+"v20211953",
+"v20211954",
+"v20212837",
+"v20212838",
+"v20212839",
+"v20212840",
+"v20212841",
+"v20212842",
+"v20212843",
+"v20212844",
+"v20212845",
+"v20212846",
+"v20212847",
+"v20212864",
+"v20212865",
+"v20212866",
+"v20212867",
+"v20213111",
+"v20213112",
+"v20213113",
+"v20213114",
+"v20213141",
+"v20213141NF",
+"v20213142",
+"v20213142NF",
+"v20213143",
+"v20213143NF",
+"v20213144",
+"v20213144NF",
+"v20213222",
+"v20213222NF",
+"v20213223",
+"v20213223NF",
+"v20213224",
+"v20213224NF",
+"v20213225",
+"v20213225NF",
+"v20213226",
+"v20213226NF",
+"v20213231",
+"v20213232",
+"v20213233",
+"v20213233NF",
+"v20213234",
+"v20213234NF",
+"v20213275",
+"v20213275NF",
+"v20213276",
+"v20213276NF",
+"v20213277",
+"v20213277NF",
+"v20213278",
+"v20213278NF",
+"v20213279",
+"v20213279NF",
+"v20213280",
+"v20213280NF",
+"v20213281",
+"v20213281NF",
+"v20213370",
+"v20213370NF",
+"v20213371",
+"v20213371NF",
+"v20213372",
+"v20213372NF",
+"v20213373",
+"v20213373NF",
+"v20221434",
+"v20221435",
+"v20221437",
+"v20221438",
+"v20221439",
+"v20221440",
+"v20221441",
+"v20221442",
+"v20221443",
+"v20221444",
+"v20221445",
+"v20221446",
+"v20221447",
+"v20221448",
+"v20221449",
+"v20221450",
+"v20221451",
+"v20221453",
+"v2022153",
+"v2022154",
+"v2022155",
+"v2022156",
+"v2022157",
+"v2022158",
+"v2022159",
+"v2022160",
+"v2022161",
+"v2022164",
+"v2022165",
+"v20222342",
+"v20222343",
+"v20222344",
+"v20222345",
+"v20222346",
+"v20222347",
+"v20222348",
+"v20222349",
+"v20222350",
+"v20222351",
+"v20222352",
+"v20222353",
+"v2022256",
+"v20222562",
+"v20222563",
+"v20222564",
+"v20222565",
+"v20222566",
+"v20222567",
+"v20222568",
+"v20222569",
+"v2022257",
+"v2022258",
+"v2022259",
+"v2022260",
+"v2022261",
+"v2022262",
+"v2023600",
+"v2023601",
+"v2023602",
+"v2023603",
+"v2023604",
+"v2023605"))
+      
+#seems like samples 117 from 2021 are errorousnly marked with 2022
+#excluding samples and checking length of final sampele set
+eem_list_ex <- eem_exclude(eem_list1, exclude)
+length(eem_list_ex)
+```
+The following samples were excluded: `print(exclude)`
+Sample length of remaining samples equals to `length(eem_list_ex)`
+
+The noisy range below 250 nm excitation and above 580 nm emission can be removed 
+```{r}
+#The noisy range below 250 nm excitation and above 580 nm emission can be removed 
+eem_list2 <- eem_list_ex %>% eem_range(ex = c(250,Inf), em = c(300,580))
+dwarf_sum <- summary(eem_list2) 
+```
+
+Make summary and plots
+```{r, echo=FALSE, warning=FALSE, error=FALSE}
+#write.csv(dwarf_sum,"C:/Users/CBG/OneDrive - NIVA/1 Projects/DWARF/DWARF_summary_FINAL.csv", row.names #= FALSE)
+eem_overview_plot(eem_list2, spp=9, contour = TRUE)
+```
+
+## 3) First attempt of PARAFAC
+- first run with poorer settings, to get an idea of number of components
+- both 3 or 4 components could be an option
+- For model with four components the emission line looked a bit strange for comp 3
+```{r First model attempt}
+# minimum and maximum of numbers of components
+# parameter settings from stardom guideline
+cores <- detectCores(logical = FALSE)
+dim_min <- 2
+dim_max <- 6
+
+nstart <- 25 # number of similar models from which best is chosen
+maxit = 5000 # maximum number of iterations in PARAFAC analysis
+ctol <- 10^-6 # tolerance in PARAFAC analysis
+
+# 11) calculating PARAFAC models, one for each number of components
+#using non-negative constraints
+pf1 <- eem_parafac(eem_list2, comps = seq(dim_min,dim_max), normalise = FALSE, const = c("nonneg", "nonneg", "nonneg"), maxit = maxit, nstart = nstart, ctol = ctol, cores = cores)
+
+# 12) rescale B and C modes to a maximum fluorescence of 1 for each component
+pf1n <- lapply(pf1, eempf_rescaleBC, newscale = "Fmax")
+#Compare the different models in plot
+print(eempf_compare(pf1n, contour = TRUE))
+```
+
+(For testing with four components go further down)
+### 3.1) Model checking
+- need to normalise since components are highly correlated with each other
+```{r First model checking: correlation between components}
+# 13) check for correlation between the components
+#The number indicates which model to look at
+print(eempf_cortable(pf1n[[2]], normalisation=FALSE))
+print(eempf_corplot(pf1n[[2]], progress = FALSE, normalisation = FALSE))
+
+# 14) Normalise to reduce correlation between components
+pf1x <- eem_parafac(eem_list2, comps = seq(dim_min,dim_max), normalise = TRUE, const = c("nonneg", "nonneg", "nonneg"), maxit = maxit, nstart = nstart, ctol = ctol, cores = cores)
+# rescale B and C modes
+pf1xn <- lapply(pf1x, eempf_rescaleBC, newscale = "Fmax")
+print(eempf_compare(pf1xn, contour = TRUE, normalisation = FALSE))
+
+#Set normalisation TRUE if you want to see the actual data
+#Set normalisation FALSE if you want to see the normalised data
+eempf_cortable(pf1xn[[2]], normalisation = TRUE)
+eempf_corplot(pf1xn[[2]], progress = FALSE, normalisation = TRUE)
+eempf_compare(pf1xn, contour = TRUE, normalisation=FALSE) 
+```
+
+- look for outliers among samples 
+```{r Look for outliers in leverages}
+# 15) Find and exclude outlier leverages
+cpl <- eempf_leverage(pf1xn[[2]])
+# plot leverage (nice plot)
+eempf_leverage_plot(cpl,qlabel=0.1)
+#eempf_leverage_ident(cpl,qlabel=0.1)
+
+# samples, excitation and emission wavelengths to exclude, makes sense after calculation of leverage
+#exclude1 <- list("ex" = c("255","250", "275", "280", "285"),
+#                "em" = c(),
+#                "sample" = c()
+#)
+#"v20222349", "v20221453", "v20221449"
+# exclude outliers if neccessary. if so, restart analysis
+#eem_list3 <- eem_exclude(eem_list2, exclude1)
+
+# plot leverage, not so nice plot but interactive to select what to exclude
+# saved in exclude, can be used to start over again with eem_list_ex <- eem_list %>% eem_exclude(exclude) above
+#exclude <- eempf_leverage_ident(cpl,qlabel=0.1)
+
+
+# DID NOT MANAGE THE FOLLOWING. SOMETHING TO DO WITH SAMPLE NAMES?
+#eempf_residuals_plot(pf1xn[[2]], eem_list2, residuals_only = TRUE, 
+ #                    select = c("v20222349", "v20221453", "v20221449"), #spp=6, cores = cores, contour = TRUE)
+```
+- should the ex wavelengths with higher leverage be excluded?
+- should the two samples (v20212857, v20212836) be excluded? No, not from looking at the leverages
+```{r Create new model without outliers}
+#pf2 <- eem_parafac(eem_list3, comps = seq(dim_min,dim_max), normalise = #TRUE, maxit = maxit, nstart = nstart, ctol = ctol, cores = cores)
+#pf2n <- lapply(pf2, eempf_rescaleBC, newscale = "Fmax")
+
+#eempf_compare(pf2n, contour = TRUE, normalisation = FALSE)
+#eempf_leverage_plot(eempf_leverage(pf2n[[2]]),qlabel=0.1)
+
+```
+### 3.2) EValuating firt attempt
+- from model fit the model2 with 3 comps seems best
+- the ex and em spectra are not 100% valid but ok
+- HIGH correlation between components
+
+Not sure of three or four components
+Make two different models
+(Interestingly, the third component looks identical to 1000Lakes assumed contamination)
+
+## 4) Re-run selected model with increased settings (will take some time)
+```{r PARAFAC increased}
+# 16) ruN MODEL AGAIN WITH INCREASED
+# minimum and maximum of numbers of components
+nstart <- 50 # number of similar models from which best is chosen
+maxit = 10000 # maximum number of iterations in PARAFAC analysis
+ctol <- 10^-10 # tolerance in PARAFAC analysis
+
+#here we specify the number of components and so there is only one model
+pf3c <- eem_parafac(eem_list2,comps = seq(dim_min,dim_max), const = c("nonneg", "nonneg", "nonneg"), normalise = TRUE, maxit = maxit, nstart = nstart, output = "all", ctol = ctol, cores = cores)
+
+pf3c <- eem_parafac(eem_list2, comps = 3, const = c("nonneg", "nonneg", "nonneg"), normalise = TRUE, maxit = maxit, nstart = nstart, output = "all", ctol = ctol, cores = cores)
+pf3cn <- lapply(pf3c, eempf_rescaleBC, newscale = "Fmax")
+eempf_compare(pf3cn, contour = TRUE)
+```
+
+### 4.1) Model checking
+While there is no golden standard of model checking, there are different tools that can be used together. See Murphy et al 2013 for details. 
+- Split-half analysis: if the graphs of all components look similar the model is stable
+- Tucker's congruency should be close to 1
+```{r Model checking}
+ # 17) Check the convergence behavior of the created models:
+eempf_convergence(pf3cn[[1]])
+eempf_leverage_plot(eempf_leverage(pf3cn[[1]]))
+eempf_corplot(pf3cn[[1]], progress = FALSE)
+
+#plot the resulting components and loadings
+eempf_comp_load_plot(pf3cn[[1]], contour = TRUE)
+
+# plot components in each sample, residual and whole sample
+#WHen using this plot, perhaps choose only some samples at the time? Did not work now with all
+#eempf_residuals_plot(pf3cn[[1]], eem_list2, cores = cores, contour = TRUE)
+
+#calculate split_half analysis
+sh <- splithalf(eem_list2, 3, normalise = TRUE, rand = FALSE, cores = cores, nstart = nstart, strictly_converging = TRUE, maxit = maxit, ctol = ctol)
+splithalf_plot(sh)
+sh %>% unlist(recursive = FALSE) %>% eempf_compare()
+
+# 20) Tucker’s Congruency Coefficients is a value for the similarity of the splits
+# 1 would be perfect similarity
+tcc_sh_table <- splithalf_tcc(sh)
+tcc_sh_table
+
+varimp <- eempf_varimp(pf3cn[[1]], eem_list2, cores = cores)
+varimp
+```
+
+```{r Model Export, include=FALSE}
+#Export to OpenFluor
+#eempf_openfluor(pf3cn[[1]], file = "23_CBG_DWARF_3comps_Otava.txt")
+#Export model for use
+#eempf_export(pf3cn[[1]], export = "C:/Users/CBG/OneDrive - NIVA/1 Projects/DWARF/230408_PARAFAC_DWARF_3comp.txt", Fmax = FALSE)
+
+
+#Make report
+#eempf_report(pf5n[[1]], export = "parafac_report.html", eem_list = eem_list_ex, shmodel = sh, performance = TRUE)
+#eempf_report(pf3[[1]], export = "parafac_report.html")
+
+#Reverse normalisation
+#p4 <- norm2A(pf5[[1]])
+
+#Export model
+#No difference in output from Fmax TRUE or FALSE for pf5m(1)
+#p4 fra pf5n ga samma output som over
+#Now they represent two different outputs, BUT they are relatively the same, the variation among the samples
+#eempf_export(pf_2cn[[1]], export = "C:/Users/CBG/OneDrive - NIVA/1 Projects/DWARF/PARAFAC_DWARF_2comp.txt", Fmax = FALSE)
+#eempf_export(pf_3cn[[1]], export = "C:/Users/CBG/OneDrive - NIVA/1 Projects/DWARF/PARAFAC_DWARF_3comp.txt", Fmax = FALSE)
+#the fluorescence indices have very poor repeatability for the standard samples. Can we have a look at only these?
+#key sensitive
+```
+
+
+
+
+
+
+
+
+
+##Testing four components
+- to compare with results from Petr
+### 3.1) Model checking
+- need to normalise since components are highly correlated with each other
+```{r First model checking: correlation between components for four comps}
+# 13) check for correlation between the components
+#The number indicates which model to look at
+print(eempf_cortable(pf1n[[3]], normalisation=FALSE))
+p erint(eempf_corplot(pf1n[[3]], progress = FALSE, normalisation = FALSE))
+
+# 14) Normalise to reduce correlation between components
+pf1x <- eem_parafac(eem_list2, comps = seq(dim_min,dim_max), normalise = TRUE, const = c("nonneg", "nonneg", "nonneg"), maxit = maxit, nstart = nstart, ctol = ctol, cores = cores)
+# rescale B and C modes
+pf1xn <- lapply(pf1x, eempf_rescaleBC, newscale = "Fmax")
+print(eempf_compare(pf1xn, contour = TRUE, normalisation = FALSE))
+
+#Set normalisation TRUE if you want to see the actual data
+#Set normalisation FALSE if you want to see the normalised data
+eempf_cortable(pf1xn[[3]], normalisation = TRUE)
+eempf_corplot(pf1xn[[3]], progress = FALSE, normalisation = TRUE)
+```
+
+- look for outliers among samples 
+```{r Look for outliers in leverages for four comps}
+# 15) Find and exclude outlier leverages
+cpl <- eempf_leverage(pf1xn[[3]])
+# plot leverage (nice plot)
+eempf_leverage_plot(cpl,qlabel=0.1)
+#eempf_leverage_ident(cpl,qlabel=0.1)
+
+# samples, excitation and emission wavelengths to exclude, makes sense after calculation of leverage
+#exclude1 <- list("ex" = c("255","250", "275", "280", "285"),
+#                "em" = c(),
+#                "sample" = c()
+#)
+#"v20222349", "v20221453", "v20221449"
+# exclude outliers if neccessary. if so, restart analysis
+#eem_list3 <- eem_exclude(eem_list2, exclude1)
+
+# plot leverage, not so nice plot but interactive to select what to exclude
+# saved in exclude, can be used to start over again with eem_list_ex <- eem_list %>% eem_exclude(exclude) above
+#exclude <- eempf_leverage_ident(cpl,qlabel=0.1)
+
+
+# DID NOT MANAGE THE FOLLOWING. SOMETHING TO DO WITH SAMPLE NAMES?
+#eempf_residuals_plot(pf1xn[[2]], eem_list2, residuals_only = TRUE, 
+ #                    select = c("v20222349", "v20221453", "v20221449"), #spp=6, cores = cores, contour = TRUE)
+```
+- should the ex wavelengths with higher leverage be excluded?
+- should the two samples (v20212857, v20212836) be excluded? No, not from looking at the leverages
+```{r Create new model without outliers for four comps}
+#pf2 <- eem_parafac(eem_list3, comps = seq(dim_min,dim_max), normalise = #TRUE, maxit = maxit, nstart = nstart, ctol = ctol, cores = cores)
+#pf2n <- lapply(pf2, eempf_rescaleBC, newscale = "Fmax")
+
+#eempf_compare(pf2n, contour = TRUE, normalisation = FALSE)
+#eempf_leverage_plot(eempf_leverage(pf2n[[2]]),qlabel=0.1)
+
+```
+### 3.2) EValuating firt attempt
+- from model fit the model2 with 3 comps seems best
+- the ex and em spectra are not 100% valid but ok
+- HIGH correlation between components
+
+Not sure of three or four components
+Make two different models
+(Interestingly, the third component looks identical to 1000Lakes assumed contamination)
+
+## 4) Re-run selected model with increased settings (will take some time)
+```{r PARAFAC increased for four comps}
+# 16) ruN MODEL AGAIN WITH INCREASED
+# minimum and maximum of numbers of components
+nstart <- 50 # number of similar models from which best is chosen
+maxit = 10000 # maximum number of iterations in PARAFAC analysis
+ctol <- 10^-10 # tolerance in PARAFAC analysis
+
+#here we specify the number of components and so there is only one model
+pf3c <- eem_parafac(eem_list2,comps = seq(dim_min,dim_max), const = c("nonneg", "nonneg", "nonneg"), normalise = TRUE, maxit = maxit, nstart = nstart, output = "all", ctol = ctol, cores = cores)
+
+pf3c <- eem_parafac(eem_list2, comps = 4, const = c("nonneg", "nonneg", "nonneg"), normalise = TRUE, maxit = maxit, nstart = nstart, output = "all", ctol = ctol, cores = cores)
+pf3cn <- lapply(pf3c, eempf_rescaleBC, newscale = "Fmax")
+eempf_compare(pf3cn, contour = TRUE)
+```
+
+### 4.1) Model checking
+While there is no golden standard of model checking, there are different tools that can be used together. See Murphy et al 2013 for details. 
+- Split-half analysis: if the graphs of all components look similar the model is stable
+- Tucker's congruency should be close to 1
+```{r Model checking for four comps}
+ # 17) Check the convergence behavior of the created models:
+eempf_convergence(pf3cn[[1]])
+eempf_leverage_plot(eempf_leverage(pf3cn[[1]]))
+eempf_corplot(pf3cn[[1]], progress = FALSE)
+
+#plot the resulting components and loadings
+eempf_comp_load_plot(pf3cn[[1]], contour = TRUE)
+
+# plot components in each sample, residual and whole sample
+#WHen using this plot, perhaps choose only some samples at the time? Did not work now with all
+#eempf_residuals_plot(pf3cn[[1]], eem_list2, cores = cores, contour = TRUE)
+
+#calculate split_half analysis
+sh <- splithalf(eem_list2, 4, normalise = TRUE, rand = FALSE, cores = cores, nstart = nstart, strictly_converging = TRUE, maxit = maxit, ctol = ctol)
+splithalf_plot(sh)
+sh %>% unlist(recursive = FALSE) %>% eempf_compare()
+
+# 20) Tucker’s Congruency Coefficients is a value for the similarity of the splits
+# 1 would be perfect similarity
+tcc_sh_table <- splithalf_tcc(sh)
+tcc_sh_table
+
+varimp <- eempf_varimp(pf3cn[[1]], eem_list2, cores = cores)
+varimp
+```
+
+```{r Model Export for four comps, include=FALSE}
+#Export to OpenFluor
+#eempf_openfluor(pf3cn[[1]], file = "23_CBG_DWARF_4comps_Otava.txt")
+#Export model for use
+#eempf_export(pf3cn[[1]], export = "C:/Users/CBG/OneDrive - NIVA/1 Projects/DWARF/230609_PARAFAC_DWARF_4comp.txt", Fmax = FALSE)
+
+
+#Make report
+#eempf_report(pf5n[[1]], export = "parafac_report.html", eem_list = eem_list_ex, shmodel = sh, performance = TRUE)
+#eempf_report(pf3[[1]], export = "parafac_report.html")
+
+#Reverse normalisation
+#p4 <- norm2A(pf5[[1]])
+
+#Export model
+#No difference in output from Fmax TRUE or FALSE for pf5m(1)
+#p4 fra pf5n ga samma output som over
+#Now they represent two different outputs, BUT they are relatively the same, the variation among the samples
+#eempf_export(pf_2cn[[1]], export = "C:/Users/CBG/OneDrive - NIVA/1 Projects/DWARF/PARAFAC_DWARF_2comp.txt", Fmax = FALSE)
+#eempf_export(pf_3cn[[1]], export = "C:/Users/CBG/OneDrive - NIVA/1 Projects/DWARF/PARAFAC_DWARF_3comp.txt", Fmax = FALSE)
+#the fluorescence indices have very poor repeatability for the standard samples. Can we have a look at only these?
+#key sensitive
+```

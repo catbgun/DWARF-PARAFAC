@@ -1,0 +1,152 @@
+---
+title: "DWARF PARAFAC"
+author: "CBG"
+date: "3/23/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load required packages, include=FALSE}
+Packages <- c("staRdom", "dplyr", "tidyr")
+lapply(Packages, library, character.only = TRUE)
+```
+
+## DWARF Fluorescence
+- load the data in RData files
+```{r Load and combine data}
+eem_listY <- eem_import_dir("C:/Users/CBG/OneDrive - NIVA/1 Projects/DWARF/DWARF-PARAFAC")
+```
+
+- seems like eem_list2, 3, 4 and 5 is not blank corrected?
+```{r View EEM data}
+eem_overview_plot(eem_listY, spp=9, contour = TRUE)
+summary(eem_listY)  
+summary
+```
+
+```{r}
+#The noisy range below 250 nm excitation and above 580 nm emission can be removed 
+eem_list1 <- eem_listY %>% eem_range(ex = c(250,Inf), em = c(300,580))
+eem_overview_plot(eem_list1, spp=9, contour = TRUE)
+```
+```{r First model attempt}
+ #10) First attempt PARAFAC model
+# minimum and maximum of numbers of components
+cores <- detectCores(logical = FALSE)
+dim_min <- 2
+dim_max <- 5
+
+nstart <- 25 # number of similar models from which best is chosen
+maxit = 5000 # maximum number of iterations in PARAFAC analysis
+ctol <- 10^-6 # tolerance in PARAFAC analysis
+
+# 11) calculating PARAFAC models, one for each number of components
+#using non-negative constraints
+pf1 <- eem_parafac(eem_list1, comps = seq(dim_min,dim_max), normalise = FALSE, const = c("nonneg", "nonneg", "nonneg"), maxit = maxit, nstart = nstart, ctol = ctol, cores = cores)
+
+# 12) rescale B and C modes to a maximum fluorescence of 1 for each component
+pf1n <- lapply(pf1, eempf_rescaleBC, newscale = "Fmax")
+#Compare the different models in plot
+eempf_compare(pf1n, contour = TRUE)
+
+# 13) check for correlation between the components
+#The number indicates which model to look at
+eempf_cortable(pf1n[[2]], normalisation=FALSE)
+eempf_corplot(pf1n[[1]], progress = FALSE, normalisation = FALSE)
+
+# 14) Normalise to reduce correlation between components
+pf3x <- eem_parafac(eem_list1, comps = seq(dim_min,dim_max), normalise = TRUE, const = c("nonneg", "nonneg", "nonneg"), maxit = maxit, nstart = nstart, ctol = ctol, cores = cores)
+# rescale B and C modes
+pf3nx <- lapply(pf3x, eempf_rescaleBC, newscale = "Fmax")
+eempf_compare(pf3nx, contour = TRUE, normalisation = FALSE)
+
+#Set normalisation TRUE if you want to see the actual data
+#Set normalisation FALSE if you want to see the normalised data
+eempf_cortable(pf3nx[[1]], normalisation = FALSE)
+eempf_corplot(pf3nx[[1]], progress = FALSE, normalisation = FALSE)
+eempf_compare(pf3nx, contour = TRUE, normalisation=FALSE) 
+
+# 15) Find and exclude outlier leverages
+cpl <- eempf_leverage(pf3nx[[1]])
+# plot leverage (nice plot)
+eempf_leverage_plot(cpl,qlabel=0.1)
+# plot leverage, not so nice plot but interactive to select what to exclude
+# saved in exclude, can be used to start over again with eem_list_ex <- eem_list %>% eem_exclude(exclude) above
+#exclude <- eempf_leverage_ident(cpl,qlabel=0.1)
+# DID NOT MANAGE THE FOLLOWING. SOMETHING TO DO WITH SAMPLE NAMES?
+eempf_residuals_plot(pf3nx[[1]], eem_list1, residuals_only = TRUE, 
+                     select = c(12, 20, 33, 41), spp = 6, cores = cores, contour = TRUE)
+
+```
+Not sure of two or three components
+Make two different models
+Interestingly, the third component looks identical to 1000Lakes assumed contamination
+```{r PARAFAC increased}
+# 16) ruN MODEL AGAIN WITH INCREASED
+# minimum and maximum of numbers of components
+nstart <- 50 # number of similar models from which best is chosen
+maxit = 10000 # maximum number of iterations in PARAFAC analysis
+ctol <- 10^-10 # tolerance in PARAFAC analysis
+
+#here we specify the number of components and so there is only one model
+pf_2c <- eem_parafac(eem_list1, comps = 2, const = c("nonneg", "nonneg", "nonneg"), normalise = TRUE, maxit = maxit, nstart = nstart, output = "all", ctol = ctol, cores = cores)
+pf_2cn <- lapply(pf_2c, eempf_rescaleBC, newscale = "Fmax")
+eempf_compare(pf_2cn, contour = TRUE)
+
+
+pf_3c <- eem_parafac(eem_list1, comps = 3, const = c("nonneg", "nonneg", "nonneg"), normalise = TRUE, maxit = maxit, nstart = nstart, output = "all", ctol = ctol, cores = cores)
+pf_3cn <- lapply(pf_3c, eempf_rescaleBC, newscale = "Fmax")
+eempf_compare(pf_3cn, contour = TRUE)
+
+
+ # 17) Check the convergence behaviour of the created models:
+eempf_convergence(pf_2cn[[1]])
+eempf_corplot(pf_2cn[[1]], progress = FALSE)
+
+eempf_convergence(pf_3cn[[1]])
+eempf_corplot(pf_3cn[[1]], progress = FALSE)
+
+```
+
+```{r}
+# 18) Plot the resulting components and loadings.
+eempf_comp_load_plot(pf_3cn[[1]], contour = TRUE)
+eempf_comp_load_plot(pf_3cn[[1]], contour = TRUE)
+
+# 19) Residual plots
+#Use eem_list4 or eem_list_ex
+eempf_residuals_plot(pf_2cn[[1]], eem_list1, cores = cores, contour = TRUE)
+
+# 19) SPlit-half analysis
+#Takes long time
+sh2 <- splithalf(eem_list1, 3, normalise = TRUE, rand = TRUE, cores = cores, nstart = nstart, maxit = maxit, ctol = ctol)
+splithalf_plot(sh2)
+
+# 20) Tucker’s Congruency Coefficients is a value for the similarity of the splits
+tcc_sh_table <- splithalf_tcc(sh2)
+tcc_sh_table
+
+#Export to OpenFluor
+eempf_openfluor(pf_2cn[[1]], file = "22_CBG_DWARF_2comps.txt")
+eempf_openfluor(pf_3cn[[1]], file = "22_CBG_DWARF_3comps.txt")
+
+#Make report
+eempf_report(pf5n[[1]], export = "parafac_report.html", eem_list = eem_list_ex, shmodel = sh, performance = TRUE)
+#eempf_report(pf3[[1]], export = "parafac_report.html")
+
+#Reverse normalisation
+p4 <- norm2A(pf5[[1]])
+
+#Export model
+#No difference in output from Fmax TRUE or FALSE for pf5m(1)
+#p4 fra pf5n ga samma output som over
+#Now they represent two different outputs, BUT they are relatively the same, the variation among the samples
+eempf_export(pf_2cn[[1]], export = "C:/Users/CBG/OneDrive - NIVA/1 Projects/DWARF/PARAFAC_DWARF_2comp.txt", Fmax = FALSE)
+eempf_export(pf_3cn[[1]], export = "C:/Users/CBG/OneDrive - NIVA/1 Projects/DWARF/PARAFAC_DWARF_3comp.txt", Fmax = FALSE)
+#the fluorescence indices have very poor repeatability for the standard samples. Can we have a look at only these?
+#key sensitive
+```
+

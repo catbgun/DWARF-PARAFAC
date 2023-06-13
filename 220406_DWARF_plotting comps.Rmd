@@ -1,0 +1,49 @@
+---
+title: "220406_DWARF_plotting comps"
+author: "CBG"
+date: "6 4 2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages}
+library(ggplot2)
+```
+
+
+## Creating an overview of the components
+Remember: the component signal is concentration sensitive. Should either be 1) divided by DOC concentration or 2) calculated relative contribution of each component for each sample. 
+
+```{r load files and combine, include=FALSE}
+#load file of components
+comps <- read.table("220401_PARAFAC_DWARF_3comp.txt", sep = " ", header = TRUE)
+nrow(comps)
+#load file of sample info
+info <- read.table("DWARF_sampleoverview2.txt", sep="\t", header=TRUE)
+colnames(info)[3] <- "sample"
+nrow(info)
+
+bb <- merge(info, comps, by="sample")
+nrow(bb)
+```
+
+```{r Creating relative comps, include=FALSE}
+
+bb$C1_rel <- bb$Comp.1/(bb$Comp.1+bb$Comp.2+bb$Comp.3)
+bb$C2_rel <- bb$Comp.2/(bb$Comp.1+bb$Comp.2+bb$Comp.3)
+bb$C3_rel <- bb$Comp.3/(bb$Comp.1+bb$Comp.2+bb$Comp.3)
+
+write.table(bb, file = "d220406_summary.txt", sep = "\t")
+
+```
+
+```{r Plot figures}
+
+ggplot(bb, aes(x=sample, y=C1_rel, fill=Date))+
+  geom_bar(stat="identity")
+nrow(bb)
+```
+

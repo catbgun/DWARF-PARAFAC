@@ -1,0 +1,47 @@
+---
+title: "230324_DWARF_sample"
+output: html_document
+date: "2023-03-24"
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+```
+
+```{r load required packages, include=FALSE}
+Packages <- c("staRdom","dplyr", "tidyr")
+lapply(Packages, library, character.only = TRUE)
+library(htmltools)
+```
+
+### Introduction
+- first attempt to PARAFAC the fluorescence EEM from the DWARF project 
+- Aim: can we distinguish anthropogenic from natural DOM?
+- procedure following: https://cran.r-project.org/web/packages/staRdom/vignettes/PARAFAC_analysis_of_EEM.html and https://doi.org/10.1039/C3AY41160E
+
+```{r Load and combine data, echo=FALSE}
+#library(devtools)
+#install_github("MatthiasPucher/staRdom")
+#library(staRdom)
+eem_listx = eem_import_dir("C:/Users/CBG/OneDrive - NIVA/1 Projects/DWARF/DWARF-PARAFAC/new/new2/new4")
+#summary(eem_list2)
+```
+
+```{r View EEM data, message=FALSE}
+eem_overview_plot(eem_list1, spp=9, contour = TRUE)
+dwarf_sum <- summary(eem_list1)  
+
+#following to find samples to keep
+write.csv(dwarf_sum,"C:/Users/CBG/OneDrive - NIVA/1 Projects/DWARF/23_DWARF_summary.csv", row.names = FALSE)
+```
+### Step 1. Upload data and exclude samples that do not belong to the project
+- The following samples were excluded for not being part of the DWARF project
+- Samples included from Otava and Karhov
+```{r exclude samples that dont belong to the dwarf project, message=FALSE}
+#The noisy range below 250 nm excitation and above 580 nm emission can be removed 
+exclude <- list("sample" = c("v2021135", "v2021136","v2021137","v2021138","v2021139","v2021140","v2021141","v2021142","v2021143","v2021144","v2021145","v2021146","v2021147","v2021148","v2021149","v2021150","v2022117","v2022118","v2022119","v2022120","v2022121","v2022122","v2022123","v2022124","v2022125","v2022126","v2022127","v2022128","v2022129","v2022130","v2022153", "v2022154","v2022155","v2022156","v2022157","v2022158","v2022159","v2022160","v2022161","v2022164","v2022165","v20212837","v20212838","v20212839","v20212840","v20212841","v20212842","v20212843","v20212844","v20212845","v20212846","v20212847","v20213112","v20213113","v20213114","v20213142","v20213143","v20213144","v20213223","v20213224","v20213225","v20213226","v20213231","v20213232","v20213234","v20213276","v20213277","v20213278","v20213279","v20213280","v20213281","v20213371","v20213372","v20213373","v020213141NF","v020213142NF","v020213143NF","v020213144NF","v020213222NF","v020213223NF","v020213224NF","v020213225NF","v20213226NF","v20213233NF","v20213234NF","v20213275NF","v20213276NF","v20213277NF","v20213278NF","v20213279NF","v20213280NF","v20213281NF","v20213370NF","v20213371NF","v20213372NF","v20213373NF","v20213141NF","v20213142NF","v20213143NF","v20213144NF","v20213222NF","v20213223NF","v20213224NF","v20213225NF"))
+
+#print(exclude)
+print(exclude)
+# exclude outliers if neccessary. if so, restart analysis
+eem_list_ex <- eem_exclude(eem_list1, exclude)
+```

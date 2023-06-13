@@ -1,0 +1,52 @@
+---
+title: "220406_DWARF_plotting comps"
+author: "CBG"
+date: "6 4 2022"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages}
+library(ggplot2)
+```
+## Creating an overview of the components
+Remember: the component signal is concentration sensitive. Should either be 1) divided by DOC concentration or 2) calculated relative contribution of each component for each sample. 
+```{r load files and combine, include=FALSE}
+#load file of components
+comps2 <- read.table("C:/Users/CBG/OneDrive - NIVA/1 Projects/DWARF/230408_PARAFAC_DWARF_3comp_simple.txt", sep = "", header = TRUE)
+nrow(comps2)
+
+#load file of sample info
+info <- read.table("DWARF_sampleoverview3.txt", sep="\t", header=TRUE)
+colnames(info)[3] <- "sample"
+nrow(info)
+nrow(comps2)
+bb <- merge(comps2, info, by="sample")
+nrow(comps2)
+
+nrow(bb)
+```
+
+```{r Creating relative comps, include=FALSE}
+
+bb$C1_rel <- bb$Comp.1/(bb$Comp.1+bb$Comp.2+bb$Comp.3)
+bb$C2_rel <- bb$Comp.2/(bb$Comp.1+bb$Comp.2+bb$Comp.3)
+bb$C3_rel <- bb$Comp.3/(bb$Comp.1+bb$Comp.2+bb$Comp.3)
+nrow(bb)
+write.table(bb, file = "d230411_DWARF_Otava_summary.txt", sep = "\t")
+
+```
+
+```{r Plot figures}
+plotty <- read.table("C:/Users/CBG/OneDrive - NIVA/1 Projects/DWARF/230408_Otava/230411_PARAFAC_Otava_Summary.txt", sep="\t", header=TRUE)
+
+ggplot(plotty, aes(x=Code, y=C3_rel))+
+  geom_bar(stat="identity")
+nrow(bb)
+```
+
